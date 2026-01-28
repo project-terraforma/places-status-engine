@@ -29,7 +29,7 @@ def _is_nan(x: Any) -> bool:
 
 def parse_json_maybe(x: Any) -> Any:
     """
-    Overture columns often store JSON as strings. This parses them safely.
+    Overture columns stores JSON as strings. This parses them safely.
     - If x is already a dict/list -> return as-is
     - If x is None/NaN -> return None
     - If x is a string -> try json.loads, otherwise None
@@ -227,9 +227,9 @@ def extract_schema_a(
     return out, y
 
 
-if __name__ == "__main__":
+def get_schema():
     # 1) Load your parquet
-    df = pd.read_parquet("../../assets/sample_3k_overture_places.parquet")
+    df = pd.read_parquet("../assets/sample_3k_overture_places.parquet")
 
     # 2) Extract Schema A features (non-base fields)
     schema_a_df, y = extract_schema_a(df, use_base_fields=False, postcode_prefix_len=3)
@@ -242,3 +242,5 @@ if __name__ == "__main__":
     X = schema_a_df.drop(columns=[c for c in ["overture_id", "base_id"] if c in schema_a_df.columns])
     print(X.iloc[0])
     print(df[['label','confidence']].groupby('label').describe())
+
+    return X,y
