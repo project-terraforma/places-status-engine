@@ -124,18 +124,13 @@ def extract_schema_a(
     use_base_fields: bool = False,
     postcode_prefix_len: int = 3,
 ) -> Tuple[pd.DataFrame, Optional[pd.Series]]:
-    """
-    Returns:
-      - features_df: flattened Overture-only Schema A features (model-ready)
-      - y: labels if present (df['label']), else None
-    """
-    # Choose which set of columns to read from: base_* or non-base
+
     prefix = "base_" if use_base_fields else ""
 
     def col(name: str) -> str:
         return f"{prefix}{name}"
 
-    # Parse JSON-ish columns once (faster than parsing repeatedly inside apply)
+    # Parse JSON columns once
     parsed = {}
     for c in [
         col("sources"), col("names"), col("categories"), col("websites"), col("socials"),
@@ -149,13 +144,12 @@ def extract_schema_a(
     # Start building features
     out = pd.DataFrame(index=df.index)
 
-    # Keep identifiers for debugging (NOT for training features unless you explicitly want)
     if "id" in df.columns:
         out["overture_id"] = df["id"].astype(str)
     if "base_id" in df.columns:
         out["base_id"] = df["base_id"].astype(str)
 
-    # confidence (numeric)
+    # confidence
     conf_col = col("confidence")
     if conf_col in df.columns:
         out["confidence"] = pd.to_numeric(df[conf_col], errors="coerce")
@@ -209,7 +203,7 @@ def extract_schema_a(
     freeform = addr0.map(lambda a: a.get("freeform") if isinstance(a, dict) else "")
     out["address_freeform_len"] = freeform.map(lambda s: len(normalize_text(s)))
 
-    # crude "has_street" heuristic (depends on what keys exist; freeform often present)
+    # has street hueristic
     out["has_street"] = (out["address_freeform_len"] > 0).astype(int)
 
     # Labels if present
@@ -222,25 +216,22 @@ def extract_schema_a(
     for c in ["name_primary", "category_primary", "country", "region", "locality", "postcode_prefix"]:
         out[c] = out[c].fillna("")
 
-    # For model training, you typically drop overture_id/base_id
-    # but keep them around for debugging & error analysis.
+
     return out, y
 
 
 def get_schema():
-    # 1) Load your parquet
+    # 1) Load  parquet
     df = pd.read_parquet("../assets/sample_3k_overture_places.parquet")
 
-    # 2) Extract Schema A features (non-base fields)
+    # 2) Extract Schema A features 
     schema_a_df, y = extract_schema_a(df, use_base_fields=False, postcode_prefix_len=3)
 
     print("Schema A columns:", list(schema_a_df.columns))
     if y is not None:
         print("Label distribution:\n", y.value_counts(dropna=False))
 
-    # 3) If you want a clean X for sklearn (drop IDs)
+    # 3)clean X for sklearn
     X = schema_a_df.drop(columns=[c for c in ["overture_id", "base_id"] if c in schema_a_df.columns])
-    print(X.iloc[0])
-    print(df[['label','confidence']].groupby('label').describe())
 
     return X,y

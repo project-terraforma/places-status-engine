@@ -1,24 +1,20 @@
-from schema_a import get_schema
 
-import pandas as pd
+from tkinter import ON
+from schema_a import get_schema
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import classification_report, precision_recall_fscore_support
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import classification_report
 
 def main():
     X,y = get_schema()
     y = y.astype(int).to_numpy()
 
-    #tf-idf
-    name_col = "name_primary"
-    category_col = "category_primary"
     #One Hot Encode
-    categorical_cols = ["country", "region"]
+    categorical_cols = ["country", "region", "category_primary"]
 
     numeric_cols = [
         "confidence", "source_count", "name_len", "alternate_category_count",
@@ -29,27 +25,26 @@ def main():
 
     preprocess = ColumnTransformer(
         transformers=[
-        
-            ("tfidf_name", TfidfVectorizer(analyzer="char_wb", ngram_range=(3,5), min_df=2), name_col),
-            ("tfidf_category", TfidfVectorizer(analyzer="char_wb", ngram_range=(3,5), min_df=2), category_col),
+
             ("cat-ohe", OneHotEncoder(handle_unknown="ignore"), categorical_cols),
-            ("num", Pipeline(steps=[("scale", StandardScaler(with_mean=False))]), numeric_cols),
+            ("num", "passthrough", numeric_cols),
         ],
         remainder="drop"
     )
 
-    clf = Pipeline(
-        steps=[
-            ("preprocess", preprocess),
-            ("log-reg", LogisticRegression(
-                max_iter=2000,
-                solver="liblinear",
-                class_weight="balanced",
-                random_state=42
-            )),
-
-        ]
+    rfc = RandomForestClassifier(
+        n_estimators=500,
+        min_samples_leaf=2,
+        random_state=42,
+        class_weight="balanced",
+        max_depth=10,
+        n_jobs=1,
     )
+
+    clf = Pipeline(steps=[
+        ("preprocess", preprocess),
+        ("rfc", rfc)
+    ])
 
     X_train, X_test, Y_train, y_test = train_test_split(X,y, test_size=.2, random_state=None, stratify=y)
 
@@ -64,3 +59,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
