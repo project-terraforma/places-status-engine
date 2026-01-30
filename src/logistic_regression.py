@@ -11,7 +11,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report, precision_recall_fscore_support
 
 def main():
-    X, y = get_schema(include_base=True, include_deltas=True)
+    X, y = get_schema()
     y = y.astype(int).to_numpy()
 
     # TF-IDF on text columns

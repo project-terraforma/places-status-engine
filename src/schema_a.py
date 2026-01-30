@@ -244,25 +244,25 @@ def extract_schema_a(
     for c in text_cols:
         out[c] = out[c].fillna("")
 
+    # Fill NaN values in numeric columns with 0
+    numeric_cols = out.select_dtypes(include=[np.number]).columns
+    out[numeric_cols] = out[numeric_cols].fillna(0)
+    
+    # Replace any inf values with 0
+    out = out.replace([np.inf, -np.inf], 0)
+
     return out, y
 
 
-def get_schema(include_base: bool = True, include_deltas: bool = True):
-    """
-    Load data and extract Schema A features.
-    
-    Args:
-        include_base: Include base_* column features
-        include_deltas: Include delta features (current - base changes)
-    """
-    # 1) Load parquet
+def get_schema():
+    #Load parquet
     df = pd.read_parquet("../assets/sample_3k_overture_places.parquet")
 
-    # 2) Extract Schema A features with base and delta features
+    #Extract Schema A features with base and delta features
     schema_a_df, y = extract_schema_a(
         df, 
-        include_base=include_base, 
-        include_deltas=include_deltas,
+        include_base=True, 
+        include_deltas=True,
         postcode_prefix_len=3
     )
 

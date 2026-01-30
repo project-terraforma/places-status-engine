@@ -8,7 +8,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report
 
 def main():
-    X, y = get_schema(include_base=True, include_deltas=True)
+    X, y = get_schema()
     y = y.astype(int).to_numpy()
 
     # One Hot Encode categorical columns
