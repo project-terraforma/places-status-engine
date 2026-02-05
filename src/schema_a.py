@@ -254,11 +254,43 @@ def extract_schema_a(
     return out, y
 
 
-def get_schema():
-    #Load parquet
+def get_schema(verbose=False):
+    """
+    Load parquet and extract Schema A features.
+    
+    Args:
+        verbose: If True, print original dataset sample
+    """
+    # Load parquet
     df = pd.read_parquet("../assets/sample_3k_overture_places.parquet")
 
-    #Extract Schema A features with base and delta features
+    if verbose:
+        print("=" * 60)
+        print("ORIGINAL PARQUET SCHEMA")
+        print("=" * 60)
+        print(f"Total columns: {len(df.columns)}")
+        print(f"Total rows: {len(df)}")
+        print()
+        
+        current_cols = [c for c in df.columns if not c.startswith('base_') and c != 'label']
+        base_cols = [c for c in df.columns if c.startswith('base_')]
+        print(f"Label: label")
+        print(f"Current ({len(current_cols)}): {current_cols}")
+        print(f"Base ({len(base_cols)}): {base_cols}")
+        print()
+        
+        print("SAMPLE ROW (Row 0):")
+        print("-" * 60)
+        row = df.iloc[0]
+        for col in df.columns:
+            val = str(row[col])
+            if len(val) > 70:
+                val = val[:70] + "..."
+            print(f"{col:20} | {val}")
+        print("=" * 60)
+        print()
+
+    # Extract Schema A features with base and delta features
     schema_a_df, y = extract_schema_a(
         df, 
         include_base=True, 
@@ -271,7 +303,12 @@ def get_schema():
     if y is not None:
         print("Label distribution:\n", y.value_counts(dropna=False))
 
-    # 3) Clean X for sklearn (drop ID columns)
+    # Clean X for sklearn (drop ID columns)
     X = schema_a_df.drop(columns=[c for c in ["overture_id", "base_id"] if c in schema_a_df.columns])
 
     return X, y
+
+
+if __name__ == "__main__":
+    # When running schema_a.py directly, show the original dataset
+    X, y = get_schema(verbose=True)
