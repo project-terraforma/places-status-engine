@@ -1,4 +1,4 @@
-from schema_a import get_schema
+from utils.schema_a import get_schema
 
 import pandas as pd
 import numpy as np

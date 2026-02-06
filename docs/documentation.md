@@ -5,7 +5,7 @@
 - Trained on OHE Categorical columns (region, country)
 - Trained on Standard Scaled numeric columns on just delta columns
 - Current version yielding ~85% percision for open ~67% percision for closed 
-- ~75% recall for open and 80% recall for closed. 
+- ~75% recall for open and ~80% recall for closed. 
 
 `random_forest.py`
 - Trained on OHE Categorical columns (region, country)

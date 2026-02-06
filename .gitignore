@@ -3,3 +3,5 @@ venv
 assets/yelp_dataset
 .DS_Store
 .parquet
+.env
+cache
