@@ -5,3 +5,4 @@ assets/yelp_dataset
 .parquet
 .env
 cache
+assets

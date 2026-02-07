@@ -313,8 +313,23 @@ def get_fsq_id_from_sources(sources):
     return None
 
 
-def label_places(df, raw_df, api_key, limit=None, resume_from=0):
-    """Label places with FSQ data."""
+def get_cached_details(fsq_id: str):
+    """Get cached details without API call. Returns None if not cached."""
+    return cache_get("details", fsq_id)
+
+
+def get_cached_search(lat: float, lon: float, name: str):
+    """Get cached search without API call. Returns None if not cached."""
+    cache_key = f"{lat:.5f}_{lon:.5f}_{name}"
+    return cache_get("search", cache_key)
+
+
+def label_places(df, raw_df, api_key, limit=None, resume_from=0, cache_only=False):
+    """Label places with FSQ data.
+    
+    Args:
+        cache_only: If True, skip places that aren't cached (no API calls)
+    """
     
     df = df.copy()
     df["sources"] = raw_df["sources"].values
@@ -326,11 +341,14 @@ def label_places(df, raw_df, api_key, limit=None, resume_from=0):
     print(f"Processing {total - start_idx} places (starting from {start_idx})...")
     print(f"  With FSQ ID: {df['_fsq_id'].notna().sum()}")
     print(f"  Need search: {df['_fsq_id'].isna().sum()}")
+    if cache_only:
+        print("  MODE: Cache-only (skipping uncached places)")
     
     results = []
+    skipped = 0
     
-    # Load checkpoint if exists
-    if CHECKPOINT_PATH.exists() and resume_from == 0:
+    # Load checkpoint if exists (only if not cache_only mode)
+    if CHECKPOINT_PATH.exists() and resume_from == 0 and not cache_only:
         checkpoint = pd.read_parquet(CHECKPOINT_PATH)
         print(f"Resuming from checkpoint: {len(checkpoint)} rows")
         start_idx = len(checkpoint)
@@ -344,15 +362,28 @@ def label_places(df, raw_df, api_key, limit=None, resume_from=0):
         query_website = normalize_domain(row.get("website", ""))
         
         if fsq_id:
-            # Direct lookup - high confidence
-            fsq_data = get_place_by_id(fsq_id, api_key)
+            # Direct lookup
+            if cache_only:
+                fsq_data = get_cached_details(fsq_id)
+                if fsq_data is None:
+                    skipped += 1
+                    continue
+            else:
+                fsq_data = get_place_by_id(fsq_id, api_key)
             match_status = "direct_match" if fsq_data else "id_not_found"
             match_confidence = "high" if fsq_data else None
             match_score = None
             search_distance = None
         else:
             # Search then choose best candidate
-            candidates = search_places(row["lat"], row["lon"], row["name"], api_key)
+            if cache_only:
+                candidates = get_cached_search(row["lat"], row["lon"], row["name"])
+                if candidates is None:
+                    skipped += 1
+                    continue
+            else:
+                candidates = search_places(row["lat"], row["lon"], row["name"], api_key)
+            
             best_candidate, score_info = choose_best_candidate(
                 candidates, row["name"], query_phone, query_website
             )
@@ -360,7 +391,13 @@ def label_places(df, raw_df, api_key, limit=None, resume_from=0):
             if best_candidate:
                 # Get full details
                 found_id = get_fsq_id(best_candidate)
-                fsq_data = get_place_by_id(found_id, api_key) if found_id else None
+                if cache_only:
+                    fsq_data = get_cached_details(found_id) if found_id else None
+                    if fsq_data is None and found_id:
+                        skipped += 1
+                        continue
+                else:
+                    fsq_data = get_place_by_id(found_id, api_key) if found_id else None
                 match_status = "search_match"
                 match_confidence = "high"
                 match_score = score_info["score"] if score_info else None
@@ -392,20 +429,32 @@ def label_places(df, raw_df, api_key, limit=None, resume_from=0):
             checkpoint_df.to_parquet(CHECKPOINT_PATH)
             print(f"\n[Checkpoint saved: {len(results)} rows]")
     
+    if cache_only:
+        print(f"\nCache-only: processed {len(results)}, skipped {skipped} uncached")
+    
+    # Final save checkpoint
+    if results:
+        checkpoint_df = pd.DataFrame(results)
+        checkpoint_df.to_parquet(CHECKPOINT_PATH)
+        print(f"[Final checkpoint saved: {len(results)} rows]")
+    
     # Final merge
     results_df = pd.DataFrame(results)
-    df_subset = df.iloc[:len(results)].reset_index(drop=True)
-    df_subset = df_subset.drop(columns=["sources", "_fsq_id"])
-    final = pd.concat([df_subset, results_df], axis=1)
     
-    return final
+    return results_df
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--cache-only", action="store_true", help="Only process cached data, no API calls")
+    parser.add_argument("--limit", type=int, default=None, help="Limit number of places to process")
+    args = parser.parse_args()
+    
     load_dotenv()
     
     api_key = os.getenv("FSQ_API_KEY")
-    if not api_key:
+    if not api_key and not args.cache_only:
         print("ERROR: FSQ_API_KEY not found in .env")
         return
     
@@ -413,31 +462,24 @@ def main():
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     
     print("=" * 60)
-    print("HYBRID LABELING (with caching + retries)")
+    print("HYBRID LABELING" + (" (CACHE-ONLY MODE)" if args.cache_only else ""))
     print("=" * 60)
     
     raw_df, processed_df = get_sf_data()
     print(f"Loaded {len(processed_df)} places\n")
     
-    # Test with 20 places
-    labeled = label_places(processed_df, raw_df, api_key, limit=None)
-    
-    # Save results
-    labeled.to_parquet(OUTPUT_PATH)
-    print(f"\nSaved to {OUTPUT_PATH}")
+    labeled = label_places(processed_df, raw_df, api_key, limit=args.limit, cache_only=args.cache_only)
     
     print("\n" + "=" * 60)
     print("RESULTS SUMMARY")
     print("=" * 60)
     
+    print(f"\nTotal labeled: {len(labeled)}")
     print("\nLabel distribution:")
     print(labeled["fsq_label"].value_counts(dropna=False))
     
     print("\nMatch status distribution:")
     print(labeled["match_status"].value_counts())
-    
-    print("\nSample results:")
-    print(labeled[["name", "fsq_name", "fsq_label", "match_status", "match_score"]].head(20).to_string())
 
 
 if __name__ == "__main__":
