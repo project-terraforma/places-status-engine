@@ -6,8 +6,7 @@ from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, MultiLabelBinarizer
 from xgboost import XGBClassifier
-from sklearn.metrics import classification_report
-import matplotlib.pyplot as plt
+from sklearn.metrics import classification_report, precision_score, recall_score, f1_score
 
 def main():
     X, y, weights = get_data()
@@ -80,7 +79,7 @@ def main():
     print(f"PR-AUC:    {cv_results['test_average_precision'].mean():.3f} ± {cv_results['test_average_precision'].std():.3f}")
     
     # === SINGLE SPLIT (for feature importance + threshold) ===
-    X_train, X_test, y_train, y_test, w_train, w_test = train_test_split(
+    X_train, X_test, y_train, y_test, w_train, _ = train_test_split(
         X, y, weights, test_size=0.2, random_state=42, stratify=y
     )
     
@@ -96,8 +95,7 @@ def main():
     
     # Threshold analysis
     y_proba = clf.predict_proba(X_test)[:, 1]
-    print("\n=== THRESHOLD ANALYSIS ===")
-    from sklearn.metrics import precision_score, recall_score, f1_score
+    print("\nTHRESHOLD ANALYSIS")
     for thresh in [0.3, 0.4, 0.5, 0.6, 0.7, 0.8]:
         y_pred_t = (y_proba >= thresh).astype(int)
         p = precision_score(y_test, y_pred_t)
@@ -106,7 +104,7 @@ def main():
         print(f"Threshold {thresh}: Precision={p:.3f}, Recall={r:.3f}, F1={f1:.3f}")
     
     y_pred = clf.predict(X_test)
-    print("\n=== DEFAULT (threshold=0.5) ===")
+    print("\nDEFAULT (threshold=0.5)")
     print(classification_report(y_test, y_pred, digits=3))
 
 
