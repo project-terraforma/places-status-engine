@@ -22,7 +22,7 @@ import pandas as pd
 
 
 EARTH_RADIUS_M = 6378137
-DEFAULT_RELEASE = "2024-12-18.0"
+DEFAULT_RELEASE = "2026-1-21.0"
 
 # San Francisco bounding
 SF_BBOX = {

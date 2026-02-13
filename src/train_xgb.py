@@ -51,7 +51,7 @@ def main():
             max_depth=4,
             min_child_weight=5,
             learning_rate=0.03,
-            scale_pos_weight=1.0,
+            scale_pos_weight=3,
             reg_lambda=1.0,
             reg_alpha=0.0,
             gamma=0.0,
@@ -63,7 +63,7 @@ def main():
     ])
     
     # === 5-FOLD CROSS VALIDATION ===
-    print("\n=== 5-FOLD STRATIFIED CV ===")
+    print("\n 5-FOLD STRATIFIED CV ")
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
     cv_results = cross_validate(
         clf, X, y,

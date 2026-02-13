@@ -262,7 +262,10 @@ def get_schema(verbose=False):
         verbose: If True, print original dataset sample
     """
     # Load parquet
-    df = pd.read_parquet("../../assets/sample_3k_overture_places.parquet")
+    import os
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    parquet_path = os.path.join(current_dir, "../../assets/sample_3k_overture_places.parquet")
+    df = pd.read_parquet(parquet_path)
 
     if verbose:
         print("=" * 60)
