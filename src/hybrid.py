@@ -11,6 +11,7 @@ def get_data():
     df = places.merge(labels, left_on='id', right_on='overture_id', how='inner')
     df = df.drop(columns=['overture_id'])
     
+    print(df.shape)
     #print(df['fsq_label'].value_counts(dropna=False))
     #print(df['fsq_suspected_closed'].value_counts(dropna=False))
 
@@ -39,11 +40,6 @@ def get_data():
 
     #score for how many contacts out of 4
     X['contact_richness'] = X['has_website'] + X['has_phone'] + X['has_email'] + X['has_address']
-
-    #stale and sparse 
-    X['stale_and_sparse'] = ((X['days_since_update'] > X['days_since_update'].median()) & 
-                          (X['source_count'] <= 1)).astype(int)
-
 
     # Convert list columns to counts (except source_datasets - keep for multi-hot)
     for col in X.columns:

@@ -4,7 +4,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split, StratifiedKFold, cross_validate
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder, MultiLabelBinarizer
+from sklearn.preprocessing import OneHotEncoder, MultiLabelBinarizer, TargetEncoder
 from xgboost import XGBClassifier
 from sklearn.metrics import classification_report, precision_score, recall_score, f1_score
 
@@ -25,19 +25,23 @@ def main():
         )
         X = pd.concat([X.drop(columns=['source_datasets']), sources_df], axis=1)
         print(f"Multi-hot encoded sources: {list(mlb.classes_)}")
-    X = X.drop(columns=['address_postcode', 'name_len', 'category_primary', 'address_locality', 'category_alternates'])
+    X = X.drop(columns=['address_postcode','name_len', 'address_locality', 'category_alternates'])
+    
+    target_cols = ["category_primary"]
+
     # Categorical columns
     cat_cols = ["address_region", "address_country"]
     cat_cols = [c for c in cat_cols if c in X.columns]
     
     # Numeric columns (everything else)
-    num_cols = [c for c in X.columns if c not in cat_cols]
+    num_cols = [c for c in X.columns if c not in cat_cols and c not in target_cols]
     
     print(f"Categorical: {cat_cols}")
     print(f"Numeric: {num_cols}")
     
     preprocess = ColumnTransformer(
         transformers=[
+            ("target", TargetEncoder(smooth="auto"), target_cols),
             ("cat", OneHotEncoder(handle_unknown="ignore", sparse_output=False), cat_cols),
             ("num", "passthrough", num_cols),
         ],
