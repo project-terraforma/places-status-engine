@@ -24,12 +24,26 @@ import pandas as pd
 EARTH_RADIUS_M = 6378137
 DEFAULT_RELEASE = "2026-1-21.0"
 
-# San Francisco bounding
+# San Francisco bounding box
 SF_BBOX = {
     "xmin": -122.52,
     "xmax": -122.35,
     "ymin": 37.70,
     "ymax": 37.82
+}
+
+# New York City bounding box (all 5 boroughs)
+NYC_BBOX = {
+    "xmin": -74.26,
+    "xmax": -73.70,
+    "ymin": 40.49,
+    "ymax": 40.92
+}
+
+# Lookup by city name
+CITY_BBOXES = {
+    "sf": SF_BBOX,
+    "nyc": NYC_BBOX,
 }
 
 

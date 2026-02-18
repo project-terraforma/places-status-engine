@@ -17,15 +17,13 @@ from dotenv import load_dotenv
 from tqdm import tqdm
 
 try:
-    from .schema_live_places import get_sf_data
+    from .schema_live_places import get_sf_data, get_city_data
 except ImportError:
-    from schema_live_places import get_sf_data
+    from schema_live_places import get_sf_data, get_city_data
 
 
 FSQ_API_BASE = "https://places-api.foursquare.com"
 CACHE_DIR = Path("../../cache/fsq")
-CHECKPOINT_PATH = Path("../../assets/sf_places_labeled_checkpoint.parquet")
-OUTPUT_PATH = Path("../../assets/sf_places_labeled.parquet")
 
 # Match thresholds
 MAX_DISTANCE_M = 100  # meters
@@ -324,129 +322,152 @@ def get_cached_search(lat: float, lon: float, name: str):
     return cache_get("search", cache_key)
 
 
-def label_places(df, raw_df, api_key, limit=None, resume_from=0, cache_only=False):
-    """Label places with FSQ data.
+def _process_one_row(row, api_key, cache_only):
+    """Process a single place row. Returns labels dict or None if skipped."""
+    time.sleep(0.2)  # Rate limit: ~5 RPS per thread × 10 threads = ~50 RPS max
+    fsq_id = row["_fsq_id"]
+    query_phone = normalize_phone(row.get("phone", ""))
+    query_website = normalize_domain(row.get("website", ""))
+    
+    if fsq_id:
+        # Direct lookup (1 API call)
+        if cache_only:
+            fsq_data = get_cached_details(fsq_id)
+            if fsq_data is None:
+                return None
+        else:
+            fsq_data = get_place_by_id(fsq_id, api_key)
+        match_status = "direct_match" if fsq_data else "id_not_found"
+        match_confidence = "high" if fsq_data else None
+        match_score = None
+        search_distance = None
+    else:
+        # Search + details (2 API calls)
+        if cache_only:
+            candidates = get_cached_search(row["lat"], row["lon"], row["name"])
+            if candidates is None:
+                return None
+        else:
+            candidates = search_places(row["lat"], row["lon"], row["name"], api_key)
+        
+        best_candidate, score_info = choose_best_candidate(
+            candidates, row["name"], query_phone, query_website
+        )
+        
+        if best_candidate:
+            found_id = get_fsq_id(best_candidate)
+            if cache_only:
+                fsq_data = get_cached_details(found_id) if found_id else None
+                if fsq_data is None and found_id:
+                    return None
+            else:
+                fsq_data = get_place_by_id(found_id, api_key) if found_id else None
+            match_status = "search_match"
+            match_confidence = "high"
+            match_score = score_info["score"] if score_info else None
+            search_distance = score_info["distance"] if score_info else None
+        elif score_info and "rejected" in score_info:
+            fsq_data = None
+            match_status = f"search_rejected_{score_info['rejected']}"
+            match_confidence = "low"
+            match_score = score_info["score"]
+            search_distance = score_info["distance"]
+        else:
+            fsq_data = None
+            match_status = "search_not_found"
+            match_confidence = None
+            match_score = None
+            search_distance = None
+    
+    labels = extract_labels(fsq_data, match_confidence)
+    labels["match_status"] = match_status
+    labels["match_score"] = match_score
+    labels["search_distance"] = search_distance
+    labels["overture_id"] = row["id"]
+    return labels
+
+
+def label_places(df, raw_df, api_key, limit=None, resume_from=0, cache_only=False, checkpoint_path=None, workers=10):
+    """Label places with FSQ data using concurrent requests.
     
     Args:
         cache_only: If True, skip places that aren't cached (no API calls)
+        workers: Number of parallel threads for API calls
     """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
     
     df = df.copy()
     df["sources"] = raw_df["sources"].values
     df["_fsq_id"] = df["sources"].apply(get_fsq_id_from_sources)
     
+    # Sort: FSQ ID places first (direct lookups are faster — 1 call vs 2)
+    df = df.sort_values("_fsq_id", key=lambda x: x.isna(), kind="stable").reset_index(drop=True)
+    
     total = limit or len(df)
     start_idx = resume_from
     
     print(f"Processing {total - start_idx} places (starting from {start_idx})...")
-    print(f"  With FSQ ID: {df['_fsq_id'].notna().sum()}")
-    print(f"  Need search: {df['_fsq_id'].isna().sum()}")
+    print(f"  With FSQ ID: {df['_fsq_id'].notna().sum()} (direct lookup, fast)")
+    print(f"  Need search: {df['_fsq_id'].isna().sum()} (search + details, slower)")
+    print(f"  Workers: {workers}")
     if cache_only:
         print("  MODE: Cache-only (skipping uncached places)")
     
     results = []
     skipped = 0
     
-    # Load checkpoint if exists (only if not cache_only mode)
-    if CHECKPOINT_PATH.exists() and resume_from == 0 and not cache_only:
-        checkpoint = pd.read_parquet(CHECKPOINT_PATH)
+    # Load checkpoint if exists
+    if checkpoint_path and checkpoint_path.exists() and resume_from == 0 and not cache_only:
+        checkpoint = pd.read_parquet(checkpoint_path)
         print(f"Resuming from checkpoint: {len(checkpoint)} rows")
         start_idx = len(checkpoint)
         results = checkpoint.to_dict('records')
     
     rows_to_process = df.iloc[start_idx:start_idx + (total - start_idx)]
     
-    for i, (idx, row) in enumerate(tqdm(rows_to_process.iterrows(), total=len(rows_to_process))):
-        fsq_id = row["_fsq_id"]
-        query_phone = normalize_phone(row.get("phone", ""))
-        query_website = normalize_domain(row.get("website", ""))
-        
-        if fsq_id:
-            # Direct lookup
-            if cache_only:
-                fsq_data = get_cached_details(fsq_id)
-                if fsq_data is None:
-                    skipped += 1
-                    continue
-            else:
-                fsq_data = get_place_by_id(fsq_id, api_key)
-            match_status = "direct_match" if fsq_data else "id_not_found"
-            match_confidence = "high" if fsq_data else None
-            match_score = None
-            search_distance = None
-        else:
-            # Search then choose best candidate
-            if cache_only:
-                candidates = get_cached_search(row["lat"], row["lon"], row["name"])
-                if candidates is None:
-                    skipped += 1
-                    continue
-            else:
-                candidates = search_places(row["lat"], row["lon"], row["name"], api_key)
+    # Process in parallel batches
+    batch_size = workers * 5  # 50 rows per batch with 10 workers
+    rows_list = list(rows_to_process.iterrows())
+    
+    with tqdm(total=len(rows_list), desc="Labeling") as pbar:
+        for batch_start in range(0, len(rows_list), batch_size):
+            batch = rows_list[batch_start:batch_start + batch_size]
             
-            best_candidate, score_info = choose_best_candidate(
-                candidates, row["name"], query_phone, query_website
-            )
-            
-            if best_candidate:
-                # Get full details
-                found_id = get_fsq_id(best_candidate)
-                if cache_only:
-                    fsq_data = get_cached_details(found_id) if found_id else None
-                    if fsq_data is None and found_id:
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                futures = {
+                    executor.submit(_process_one_row, row, api_key, cache_only): idx
+                    for idx, row in batch
+                }
+                for future in as_completed(futures):
+                    result = future.result()
+                    if result:
+                        results.append(result)
+                    else:
                         skipped += 1
-                        continue
-                else:
-                    fsq_data = get_place_by_id(found_id, api_key) if found_id else None
-                match_status = "search_match"
-                match_confidence = "high"
-                match_score = score_info["score"] if score_info else None
-                search_distance = score_info["distance"] if score_info else None
-            elif score_info and "rejected" in score_info:
-                # Found candidates but none met thresholds
-                fsq_data = None
-                match_status = f"search_rejected_{score_info['rejected']}"
-                match_confidence = "low"
-                match_score = score_info["score"]
-                search_distance = score_info["distance"]
-            else:
-                fsq_data = None
-                match_status = "search_not_found"
-                match_confidence = None
-                match_score = None
-                search_distance = None
-        
-        labels = extract_labels(fsq_data, match_confidence)
-        labels["match_status"] = match_status
-        labels["match_score"] = match_score
-        labels["search_distance"] = search_distance
-        labels["overture_id"] = row["id"]
-        results.append(labels)
-        
-        # Checkpoint every 500 rows
-        if (i + 1) % 500 == 0:
-            checkpoint_df = pd.DataFrame(results)
-            checkpoint_df.to_parquet(CHECKPOINT_PATH)
-            print(f"\n[Checkpoint saved: {len(results)} rows]")
+                    pbar.update(1)
+            
+            # Checkpoint every 500 new results
+            if len(results) % 500 < batch_size and checkpoint_path:
+                checkpoint_df = pd.DataFrame(results)
+                checkpoint_df.to_parquet(checkpoint_path)
+                pbar.set_postfix(saved=len(results))
     
     if cache_only:
         print(f"\nCache-only: processed {len(results)}, skipped {skipped} uncached")
     
-    # Final save checkpoint
-    if results:
+    # Final checkpoint
+    if results and checkpoint_path:
         checkpoint_df = pd.DataFrame(results)
-        checkpoint_df.to_parquet(CHECKPOINT_PATH)
+        checkpoint_df.to_parquet(checkpoint_path)
         print(f"[Final checkpoint saved: {len(results)} rows]")
     
-    # Final merge
-    results_df = pd.DataFrame(results)
-    
-    return results_df
+    return pd.DataFrame(results)
 
 
 def main():
     import argparse
     parser = argparse.ArgumentParser()
+    parser.add_argument("--city", type=str, default="sf", choices=["sf", "nyc"], help="City to label (default: sf)")
     parser.add_argument("--cache-only", action="store_true", help="Only process cached data, no API calls")
     parser.add_argument("--limit", type=int, default=None, help="Limit number of places to process")
     args = parser.parse_args()
@@ -458,21 +479,24 @@ def main():
         print("ERROR: FSQ_API_KEY not found in .env")
         return
     
+    # City-aware paths
+    CHECKPOINT_PATH = Path(f"../../assets/{args.city}_places_labeled_checkpoint.parquet")
+    OUTPUT_PATH = Path(f"../../assets/{args.city}_places_labeled.parquet")
+
     # Create cache dir
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+    print(f"HYBRID LABELING ({args.city.upper()})" + (" (CACHE-ONLY MODE)" if args.cache_only else ""))
+
     
-    print("=" * 60)
-    print("HYBRID LABELING" + (" (CACHE-ONLY MODE)" if args.cache_only else ""))
-    print("=" * 60)
-    
-    raw_df, processed_df = get_sf_data()
+    raw_df, processed_df = get_city_data(city=args.city)
     print(f"Loaded {len(processed_df)} places\n")
     
-    labeled = label_places(processed_df, raw_df, api_key, limit=args.limit, cache_only=args.cache_only)
+    labeled = label_places(processed_df, raw_df, api_key, limit=args.limit, cache_only=args.cache_only, checkpoint_path=CHECKPOINT_PATH)
     
-    print("\n" + "=" * 60)
+
     print("RESULTS SUMMARY")
-    print("=" * 60)
+
     
     print(f"\nTotal labeled: {len(labeled)}")
     print("\nLabel distribution:")

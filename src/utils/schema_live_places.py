@@ -4,33 +4,32 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 try:
-    from .places_util import OverturePlaces, SF_BBOX, extract_name, extract_category
+    from .places_util import OverturePlaces, SF_BBOX, CITY_BBOXES, extract_name, extract_category
 except ImportError:
-    from places_util import OverturePlaces, SF_BBOX, extract_name, extract_category
+    from places_util import OverturePlaces, SF_BBOX, CITY_BBOXES, extract_name, extract_category
 
 
 # DATA FETCHING
 
-def fetch_sf_places(limit: Optional[int] = None, save_path: Optional[str] = None) -> pd.DataFrame:
+def fetch_places(bbox: dict, limit: Optional[int] = None, save_path: Optional[str] = None) -> pd.DataFrame:
     """
-    Fetch all San Francisco places from Overture S3.
+    Fetch places from Overture S3 for a given bounding box.
     
     Args:
-        limit: Max places to fetch (None for all ~180k)
+        bbox: Dict with xmin, xmax, ymin, ymax
+        limit: Max places to fetch (None for all)
         save_path: If provided, save raw data to parquet
     
     Returns:
         Raw DataFrame with all Overture columns
     """
-
-    print("FETCHING SAN FRANCISCO PLACES FROM OVERTURE")
-
-    print(f"Bounding box: {SF_BBOX}")
+    print(f"FETCHING PLACES FROM OVERTURE")
+    print(f"Bounding box: {bbox}")
     print(f"Limit: {limit or 'None (all places)'}")
     print()
     
     client = OverturePlaces()
-    df = client.query_bbox(SF_BBOX, limit=limit, include_all_fields=True)
+    df = client.query_bbox(bbox, limit=limit, include_all_fields=True)
     
     if save_path and not df.empty:
         Path(save_path).parent.mkdir(parents=True, exist_ok=True)
@@ -38,6 +37,11 @@ def fetch_sf_places(limit: Optional[int] = None, save_path: Optional[str] = None
         print(f"Saved raw data to: {save_path}")
     
     return df
+
+
+# Keep old name for backwards compatibility
+def fetch_sf_places(limit=None, save_path=None):
+    return fetch_places(SF_BBOX, limit=limit, save_path=save_path)
 
 
 def process_sf_places(df: pd.DataFrame) -> pd.DataFrame:
@@ -244,12 +248,21 @@ def process_sf_places(df: pd.DataFrame) -> pd.DataFrame:
 
 # MAIN API
 
-def get_sf_data(
+def get_city_data(
+    city: str = "sf",
     limit: Optional[int] = None,
     use_cache: bool = True,
-    cache_path: str = "../../assets/sf_places_raw.parquet",
-    processed_cache_path: str = "../../assets/sf_places_processed.parquet"
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """Fetch and process Overture data for a city.
+    
+    Args:
+        city: City key ('sf' or 'nyc')
+        limit: Max places to fetch
+        use_cache: Whether to use/save parquet caches
+    """
+    bbox = CITY_BBOXES[city]
+    cache_path = f"../../assets/{city}_places_raw.parquet"
+    processed_cache_path = f"../../assets/{city}_places_processed.parquet"
 
     cache_file = Path(cache_path)
     processed_cache_file = Path(processed_cache_path)
@@ -261,7 +274,7 @@ def get_sf_data(
         if limit:
             raw_df = raw_df.head(limit)
     else:
-        raw_df = fetch_sf_places(limit=limit, save_path=cache_path)
+        raw_df = fetch_places(bbox, limit=limit, save_path=cache_path)
     
     # Try to load processed from cache (only if no limit and cache exists)
     if use_cache and limit is None and processed_cache_file.exists():
@@ -269,7 +282,6 @@ def get_sf_data(
         processed_df = pd.read_parquet(processed_cache_path)
     else:
         processed_df = process_sf_places(raw_df)
-        # Save processed cache if no limit
         if use_cache and limit is None:
             processed_df.to_parquet(processed_cache_path)
             print(f"Saved processed cache: {processed_cache_path}")
@@ -277,21 +289,24 @@ def get_sf_data(
     return raw_df, processed_df
 
 
-def load_sf_data(path: str = "../../assets/sf_places_raw.parquet") -> pd.DataFrame:
-    return pd.read_parquet(path)
+# Keep old name for backwards compatibility
+def get_sf_data(limit=None, use_cache=True, **kwargs):
+    return get_city_data("sf", limit=limit, use_cache=use_cache)
 
 
 if __name__ == "__main__":
     import argparse
     
-    parser = argparse.ArgumentParser(description="Fetch SF Overture Places data")
+    parser = argparse.ArgumentParser(description="Fetch Overture Places data")
+    parser.add_argument("--city", type=str, default="sf", choices=list(CITY_BBOXES.keys()), help="City to fetch (default: sf)")
     parser.add_argument("--limit", type=int, default=None, help="Max places to fetch (None for all)")
     parser.add_argument("--no-cache", action="store_true", help="Don't use/save cache")
     args = parser.parse_args()
     
-    print("SCHEMA SF - San Francisco Overture Places")
+    print(f"SCHEMA {args.city.upper()} - Overture Places")
     
-    raw_df, processed_df = get_sf_data(
+    raw_df, processed_df = get_city_data(
+        city=args.city,
         limit=args.limit,
         use_cache=not args.no_cache
     )
