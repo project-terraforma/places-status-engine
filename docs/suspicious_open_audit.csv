@@ -1,0 +1,32 @@
+suspicious_open_audit
+name,address,city,category,fsq_label,model_P_closed,google_url,Model correct
+FrosTea Boba Tea and Shaved Snow Cafe,6178 Mission St,SF,bubble_tea,open,0.832,https://www.google.com/search?q=FrosTea+Boba+Tea+and+Shaved+Snow+Cafe+6178+Mission+St,0
+Pacific Foreign Exchange,533 Sutter St,SF,currency_exchange,open,0.733,https://www.google.com/search?q=Pacific+Foreign+Exchange+533+Sutter+St,1
+Visentini Brothers,256 Union St,NYC,italian_restaurant,open,0.984,https://www.google.com/search?q=Visentini+Brothers+256+Union+St,1
+Juice Press,25 E 17th St,NYC,smoothie_juice_bar,open,0.724,https://www.google.com/search?q=Juice+Press+25+E+17th+St,1
+Barrel 79,79 Audubon Ave,NYC,bar,open,0.916,https://www.google.com/search?q=Barrel+79+79+Audubon+Ave,1
+Panificio,175 Avenue B,NYC,italian_restaurant,open,0.862,https://www.google.com/search?q=Panificio+175+Avenue+B,1
+Pitopia,43 E 34th St,NYC,kosher_restaurant,open,0.842,https://www.google.com/search?q=Pitopia+43+E+34th+St,0
+Anthony's Coal Fired Pizza,10 Sterling Blvd,NYC,pizza_restaurant,open,0.927,https://www.google.com/search?q=Anthony%27s+Coal+Fired+Pizza+10+Sterling+Blvd,1
+Let's Talk Wine,831 W 181st St,NYC,event_technology_service,open,0.734,https://www.google.com/search?q=Let%27s+Talk+Wine+831+W+181st+St,0
+Pizza Ristorante,487 Main St,NYC,pizza_restaurant,open,0.847,https://www.google.com/search?q=Pizza+Ristorante+487+Main+St,1
+EILEEN FISHER - NYC Offices,111 5th Avenue Floor 10,NYC,clothing_store,open,0.823,https://www.google.com/search?q=EILEEN+FISHER+-+NYC+Offices+111+5th+Avenue+Floor+10,1
+Big 4 Restaurant,1075 California St,SF,american_restaurant,open,0.954,https://www.google.com/search?q=Big+4+Restaurant+1075+California+St,1
+"Ameritech Computer Service, Inc.",2688 3rd St,SF,electronics,open,0.922,https://www.google.com/search?q=Ameritech+Computer+Service%2C+Inc.+2688+3rd+St,0
+Platters Corner,60 River St,NYC,mediterranean_restaurant,open,0.912,https://www.google.com/search?q=Platters+Corner+60+River+St,1
+The New York Pilates Studio,330 W 42nd St,NYC,gym,open,0.757,https://www.google.com/search?q=The+New+York+Pilates+Studio+330+W+42nd+St,1
+Yorganic,264 W 40th St,NYC,smoothie_juice_bar,open,0.853,https://www.google.com/search?q=Yorganic+264+W+40th+St,1
+One World Cafe,522 Jones St,SF,cafe,open,0.910,https://www.google.com/search?q=One+World+Cafe+522+Jones+St,1
+Bravo Superfresh,1002 76th St,NYC,mexican_restaurant,open,0.894,https://www.google.com/search?q=Bravo+Superfresh+1002+76th+St,1
+Carlos & Gabbys,100 W 83rd St,NYC,kosher_restaurant,open,0.855,https://www.google.com/search?q=Carlos+%26+Gabbys+100+W+83rd+St,0
+Little Italy Pizza IV,688 Avenue of the Americas,NYC,pizza_restaurant,open,0.756,https://www.google.com/search?q=Little+Italy+Pizza+IV+688+Avenue+of+the+Americas,0
+Urban Beauty Skin Care & Spa,253 5th Ave,NYC,spas,open,0.707,https://www.google.com/search?q=Urban+Beauty+Skin+Care+%26+Spa+253+5th+Ave,0
+Justin Enterprises,900 Broadway,NYC,retail,open,0.910,https://www.google.com/search?q=Justin+Enterprises+900+Broadway,0
+Chili's,"Terminal 4, Concourse B",NYC,american_restaurant,open,0.924,https://www.google.com/search?q=Chili%27s+Terminal+4%2C+Concourse+B,1
+K & G Pharmacy,2434 Jerome Ave,NYC,pharmacy,open,0.715,https://www.google.com/search?q=K+%26+G+Pharmacy+2434+Jerome+Ave,1
+R B Restaurant,537 E 183rd St,NYC,mexican_restaurant,open,0.768,https://www.google.com/search?q=R+B+Restaurant+537+E+183rd+St,1
+Ranch 1,184 Essex St,NYC,american_restaurant,open,0.877,https://www.google.com/search?q=Ranch+1+184+Essex+St,1
+Dudley's,94 Hudson Pk Rd,NYC,american_restaurant,open,0.951,https://www.google.com/search?q=Dudley%27s+94+Hudson+Pk+Rd,1
+Jim's Shoe Repair,50 E 59th St,NYC,shoe_store,open,0.820,https://www.google.com/search?q=Jim%27s+Shoe+Repair+50+E+59th+St,0
+Fino,4 E 36th St,NYC,italian_restaurant,open,0.767,https://www.google.com/search?q=Fino+4+E+36th+St,1
+Take 800 Sushi,800 Lexington Ave,NYC,sushi_restaurant,open,0.720,https://www.google.com/search?q=Take+800+Sushi+800+Lexington+Ave,1
