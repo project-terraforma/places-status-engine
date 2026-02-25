@@ -44,7 +44,7 @@ def fetch_sf_places(limit=None, save_path=None):
     return fetch_places(SF_BBOX, limit=limit, save_path=save_path)
 
 
-def process_sf_places(df: pd.DataFrame) -> pd.DataFrame:
+def process_places(df: pd.DataFrame) -> pd.DataFrame:
     """
     Process raw Overture data into clean features.
     
@@ -281,7 +281,7 @@ def get_city_data(
         print(f"Loading processed from cache: {processed_cache_path}")
         processed_df = pd.read_parquet(processed_cache_path)
     else:
-        processed_df = process_sf_places(raw_df)
+        processed_df = process_places(raw_df)
         if use_cache and limit is None:
             processed_df.to_parquet(processed_cache_path)
             print(f"Saved processed cache: {processed_cache_path}")
