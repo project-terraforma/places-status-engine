@@ -39,11 +39,6 @@ def fetch_places(bbox: dict, limit: Optional[int] = None, save_path: Optional[st
     return df
 
 
-# Keep old name for backwards compatibility
-def fetch_sf_places(limit=None, save_path=None):
-    return fetch_places(SF_BBOX, limit=limit, save_path=save_path)
-
-
 def process_places(df: pd.DataFrame) -> pd.DataFrame:
     """
     Process raw Overture data into clean features.
@@ -102,63 +97,46 @@ def process_places(df: pd.DataFrame) -> pd.DataFrame:
     out["category_primary"] = df["categories"].apply(get_primary_cat)
     out["category_alternates"] = df["categories"].apply(get_alt_cats)
     out["category_alt_count"] = out["category_alternates"].apply(len)
+
+    # New taxonomy fields (Feb 2026+ schema). Fall back gracefully on older releases.
+    if "basic_category" in df.columns:
+        out["basic_category"] = df["basic_category"].fillna("")
+    else:
+        out["basic_category"] = ""
+
+    if "taxonomy" in df.columns:
+        def get_taxonomy_top(x):
+            if isinstance(x, dict):
+                h = x.get("hierarchy")
+                if isinstance(h, (list, np.ndarray)) and len(h) > 0:
+                    return h[0]
+            return ""
+        out["taxonomy_top"] = df["taxonomy"].apply(get_taxonomy_top)
+        out["taxonomy_primary"] = df["taxonomy"].apply(
+            lambda x: x.get("primary", "") if isinstance(x, dict) else ""
+        )
+    else:
+        out["taxonomy_top"] = ""
+        out["taxonomy_primary"] = ""
     
    
     out["confidence"] = pd.to_numeric(df["confidence"], errors="coerce").fillna(0)
     
 
-    def get_first_website(x):
-        items = safe_iter(x)
-        for item in items:
+    def get_first_value(x):
+        """Extract first string value from a list of dicts or strings."""
+        for item in safe_iter(x):
             if isinstance(item, dict):
                 return item.get("value", "") or ""
             if isinstance(item, str):
                 return item
         return ""
-    
-    out["website"] = df["websites"].apply(get_first_website)
-    out["website_count"] = df["websites"].apply(safe_len)
-    out["has_website"] = (out["website_count"] > 0).astype(int)
 
-    def get_first_phone(x):
-        items = safe_iter(x)
-        for item in items:
-            if isinstance(item, dict):
-                return item.get("value", "") or ""
-            if isinstance(item, str):
-                return item
-        return ""
-    
-    out["phone"] = df["phones"].apply(get_first_phone)
-    out["phone_count"] = df["phones"].apply(safe_len)
-    out["has_phone"] = (out["phone_count"] > 0).astype(int)
-    
-
-    def get_first_email(x):
-        items = safe_iter(x)
-        for item in items:
-            if isinstance(item, dict):
-                return item.get("value", "") or ""
-            if isinstance(item, str):
-                return item
-        return ""
-    
-    out["email"] = df["emails"].apply(get_first_email)
-    out["email_count"] = df["emails"].apply(safe_len)
-    out["has_email"] = (out["email_count"] > 0).astype(int)
-    
-    def get_first_social(x):
-        items = safe_iter(x)
-        for item in items:
-            if isinstance(item, dict):
-                return item.get("value", "") or ""
-            if isinstance(item, str):
-                return item
-        return ""
-    
-    out["social"] = df["socials"].apply(get_first_social)
-    out["social_count"] = df["socials"].apply(safe_len)
-    out["has_social"] = (out["social_count"] > 0).astype(int)
+    for field, col_prefix in [("websites", "website"), ("phones", "phone"),
+                               ("emails", "email"), ("socials", "social")]:
+        out[col_prefix] = df[field].apply(get_first_value)
+        out[f"{col_prefix}_count"] = df[field].apply(safe_len)
+        out[f"has_{col_prefix}"] = (out[f"{col_prefix}_count"] > 0).astype(int)
     
     def get_brand_name(x):
         if x is None or (isinstance(x, float) and pd.isna(x)):
@@ -287,11 +265,6 @@ def get_city_data(
             print(f"Saved processed cache: {processed_cache_path}")
     
     return raw_df, processed_df
-
-
-# Keep old name for backwards compatibility
-def get_sf_data(limit=None, use_cache=True, **kwargs):
-    return get_city_data("sf", limit=limit, use_cache=use_cache)
 
 
 if __name__ == "__main__":

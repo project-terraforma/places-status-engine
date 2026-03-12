@@ -1,4 +1,4 @@
-from hybrid import get_data, get_unlabeled
+from hybrid import get_data
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split, StratifiedKFold, cross_validate
@@ -10,12 +10,17 @@ from sklearn.metrics import classification_report, precision_score, recall_score
 
 # Columns dropped before model training — not predictive or geographically biased
 DROP_COLS = [
-    'days_since_update', 'address_postcode', 'name_len', 'address_locality',
-    'category_alternates', 'address_region', 'address_country'
+    'address_postcode', 'name_len', 'address_locality',
+    'category_alternates', 'address_region', 'address_country',
+    'taxonomy_primary',  # redundant with taxonomy_top
+    'days_since_update',  # Overture update_time is provider/dataset-level, not business-level
 ]
 
 
-def create_pipeline(X, target_cols=["category_primary", "brand_name"]):
+def create_pipeline(X, target_cols=None):
+    if target_cols is None:
+        # basic_category / taxonomy_top are high-cardinality categoricals — target encode same as category_primary
+        target_cols = [c for c in ["category_primary", "brand_name", "basic_category", "taxonomy_top"] if c in X.columns]
     cat_cols = [c for c in ["address_region", "address_country"] if c in X.columns]
     num_cols = [c for c in X.columns if c not in cat_cols and c not in target_cols and c != 'source_datasets']
 
@@ -34,9 +39,9 @@ def create_pipeline(X, target_cols=["category_primary", "brand_name"]):
             max_depth=4,
             min_child_weight=5,
             learning_rate=0.03,
-            scale_pos_weight=3,
+            scale_pos_weight=3.0,
             reg_lambda=1.0,
-            reg_alpha=0.0,
+            reg_alpha=0,
             gamma=0.0,
             objective="binary:logistic",
             eval_metric="aucpr",
@@ -60,7 +65,6 @@ def encode_sources(X):
     )
     if 'src_Foursquare' in sources_df.columns:
         sources_df = sources_df.drop(columns=['src_Foursquare'])
-        print("Dropped src_Foursquare (label leakage)")
     X = pd.concat([X.drop(columns=['source_datasets']), sources_df], axis=1)
     X['meta_dead_url'] = ((X['src_meta'] == 1) & (X['url_alive'] == 0)).astype(float)
     return X
@@ -131,9 +135,6 @@ def _eval(clf, X_test, y_test, cities_test=None):
 
 
 def train_model(X_raw, y, weights):
-    """
-    Full training with label cleaning. Used by pipeline.py for inference.
-    """
     X, y, weights = _prepare(X_raw, y, weights)
     clf = create_pipeline(X)
 
@@ -180,30 +181,6 @@ def split_test():
     clf.fit(X_train, y_train, xgb__sample_weight=w_train)
     _print_features(clf)
     _eval(clf, X_test, y_test, cities_test)
-
-
-def projectc_holdout():
-    """
-    Generalization test: train only on SF + NYC, evaluate on project_c as a true holdout.
-    project_c is completely unseen during training — no CV leakage.
-    """
-    X, y, weights, cities = get_data()
-    X, y, weights = _prepare(X, y, weights)
-
-    train_mask = cities != 'projectc'
-    test_mask  = cities == 'projectc'
-
-    X_train, y_train, w_train = X[train_mask], y[train_mask], weights[train_mask]
-    X_test,  y_test            = X[test_mask],  y[test_mask]
-
-    print(f"Train: {train_mask.sum()} places (SF + NYC)")
-    print(f"Test:  {test_mask.sum()} places (project_c only)\n")
-
-    clf = create_pipeline(X_train)
-    _run_cv(clf, X_train, y_train, w_train, label="SF+NYC TRAIN")
-    clf.fit(X_train, y_train, xgb__sample_weight=w_train)
-    _print_features(clf)
-    _eval(clf, X_test, y_test, cities[test_mask])
 
 
 if __name__ == "__main__":

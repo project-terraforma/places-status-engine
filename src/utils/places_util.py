@@ -22,7 +22,7 @@ import pandas as pd
 
 
 EARTH_RADIUS_M = 6378137
-DEFAULT_RELEASE = "2026-1-21.0"
+DEFAULT_RELEASE = "2026-02-18.0"
 
 # San Francisco bounding box
 SF_BBOX = {
@@ -157,7 +157,7 @@ class OverturePlaces:
         
         if include_all_fields:
             fields = """
-                id, names, categories, confidence, 
+                id, names, categories, basic_category, taxonomy, confidence,
                 websites, socials, emails, phones, brand, addresses, sources,
                 operating_status,
                 ST_X(ST_Centroid(geometry)) AS lon,
@@ -165,7 +165,7 @@ class OverturePlaces:
             """
         else:
             fields = """
-                id, names, categories, confidence,
+                id, names, categories, basic_category, taxonomy, confidence,
                 ST_X(ST_Centroid(geometry)) AS lon,
                 ST_Y(ST_Centroid(geometry)) AS lat
             """
